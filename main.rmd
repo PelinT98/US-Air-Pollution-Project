@@ -1,0 +1,859 @@
+```{r message=FALSE, warning=FALSE, include=FALSE}
+#install.packages('heplots')
+library(ggplot2)
+library(lattice)
+library(gridExtra)
+library(tseries)
+library(TSA)
+library(fUnitRoots)
+library(caschrono)
+library(pdR)
+library(uroot)
+library(fpp2)
+#install.packages('hrbrthemes')
+library(hrbrthemes)
+#install.packages('gcookbook')
+library(gcookbook)
+library(tidyverse)
+#install.packages('plotly', type='binary')
+library(plotly)
+#install.packages("ICSNP")
+library(ICSNP)
+#install.packages("DescTools")
+library(DescTools)
+library(MVN)
+library(MVA)
+#install.packages('rpanel')
+#install.packages('tcltk')
+library(rpanel)
+library(tcltk)
+library(ICSNP)
+library(factoextra) #produce ggplot graphs
+#install.packages('psych')
+library(psych)#Loading the dataset
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+#############################
+
+loan_data <- read.csv('loan50.csv', sep=',', header=TRUE)
+
+#we discard 16. observation from data set because this person was the only one having different type grade in question 3, arising problem in calculations for MANOVA.
+loan_data1 <- loan_data[1:15, ]
+loan_data2 <- loan_data[17:50, ]
+
+loan_data <- rbind(loan_data1, loan_data2)
+
+loan_data <- na.omit(loan_data)
+
+loan_numeric_data <- loan_data[, c('num_cc_carrying_balance', 'annual_income', 'debt_to_income', 
+                                   'total_credit_limit', 
+                                   'total_credit_utilized', 
+                                   'loan_amount', 'interest_rate', 'total_income')]
+
+loan_numeric_data <- na.omit(loan_numeric_data)
+
+hist_univariate_normality_test <- mvn(data = log(loan_numeric_data), mvnTest = "hz", univariatePlot = "histogram")
+hist_univariate_normality_test$univariateNormality #univariate normality result.
+dim(loan_numeric_data)
+```
+
+<span style="color:red">**Detecting Outliers**</span>
+
+bivariate boxplots.
+
+In this question, weâ€™ll create 21 boxplots to detect the outliers..
+
+```{r message=FALSE, warning=FALSE}
+#â€¢29, 32, 25, 39, 23, 28, 4, 37
+#15, 39, 23, 28, 4, 37
+#39, 23, 28, 4, 37
+#34, 38, 4, 28, 37
+#39, 23, 28, 4, 37
+#34, 38, 23, 28, 4, 37
+par(mfrow=c(2, 3))
+
+for(i in 2:7){
+  sub<-loan_numeric_data[,c(1,i)]
+  bvbox(sub)
+  text(sub[,1], sub[,2])
+}
+```
+
+```{r message=FALSE, warning=FALSE}
+#29, 32, 25, 39, 23 ,28, 4, 37
+#15, 39, 23, 28, 4, 37
+#39, 23, 28, 4, 37
+#34, 38, 28, 4, 37
+#39, 23, 28, 37, 4
+par(mfrow=c(2, 3))
+
+for(i in 3:7){
+  sub<-loan_numeric_data[,c(1,i)]
+  bvbox(sub)
+  text(sub[,1], sub[,2])
+}
+```
+
+```{r message=FALSE, warning=FALSE}
+#29, 32, 25, 39, 23, 28, 4, 37
+#15, 39, 23, 28, 4, 37
+#39, 23, 28, 4, 37
+#38, 34, 28, 4, 37
+par(mfrow=c(2, 3))
+
+for(i in 4:7){
+  sub<-loan_numeric_data[,c(1,i)]
+  bvbox(sub)
+  text(sub[,1], sub[,2])
+}
+```
+
+```{r message=FALSE, warning=FALSE}
+#29, 32, 25, 39, 23, 28, 4, 37
+#15, 39, 23, 28, 4, 37
+#39, 23, 28, 4, 37
+par(mfrow=c(2, 2))
+
+for(i in 5:7){
+  sub<-loan_numeric_data[,c(1,i)]
+  bvbox(sub)
+  text(sub[,1], sub[,2])
+}
+```
+
+```{r message=FALSE, warning=FALSE}
+#29, 32, 25, 39, 23, 28, 4, 37
+#15, 39, 23, 28, 4, 37
+par(mfrow=c(2, 2))
+
+for(i in 6:7){
+  sub<-loan_numeric_data[,c(1,i)]
+  bvbox(sub)
+  text(sub[,1], sub[,2])
+}
+```
+
+```{r message=FALSE, warning=FALSE}
+#37
+par(mfrow=c(1, 2))
+
+sub<-loan_numeric_data[, 6:7]
+bvbox(sub)
+text(sub[,1], sub[,2])
+```
+
+At the end of the visual inspection, we detect 8 outlier points. (4, 23, 25, 28, 29, 32, 37, 39)
+
+we did not discard outliers to avoid from removing valuable information (we saw that outliers are not the reason for nonnormality).
+
+The correlation matrix calculated using the data without outliers is as follows:
+
+After removing outliers, correlation between the variables changed.
+
+Between num_cc_carrying_balance and annual_income: 0.05177258 ==> -0.4028742
+
+Between num_cc_carrying_balance and debt_to_income: 0.098789771 ==> -0.52665772
+
+Between total_credit_limit and debt_to_income: 0.008871843 ==> 0.07159353
+
+```{r message=FALSE, warning=FALSE}
+loan_numeric_data_nooutlier <- loan_numeric_data[c(4, 23, 25, 28, 29, 32, 37, 39),]
+cor(loan_numeric_data_nooutlier) #after removing outliers
+```
+
+The correlation matrix calculated using the data before removing outliers is as follows:
+
+```{r message=FALSE, warning=FALSE}
+cor(loan_numeric_data) #before removing outliers
+```
+
+<span style="color:red">**Assessing Normality in Multivariate Data**</span>
+
+Below graph indicates that distribution is left skewed.
+
+Also, most of the points deviate from the 45 degree line indicating nonnormality.
+
+```{r message=FALSE, warning=FALSE}
+mvn(loan_numeric_data, multivariatePlot= "qq") #left skewed
+```
+
+dim > 48, so, we use 'royston'.
+
+```{r message=FALSE, warning=FALSE}
+dim(loan_numeric_data)
+```
+#After discarding NA values, the dataset has 47 rows and 8 columns.
+H0: The data follows normal distribution.
+
+```{r}
+colMeans(loan_numeric_data)
+
+```
+
+```{r}
+summary(loan_numeric_data)
+```
+
+
+H1: The data does not follow normal distribution.
+
+Since p value is less than Î±, we reject H0 and we can say that we donâ€™t have enough evidence to prove that the data follow normal distribution.
+
+```{r}
+multi_normality_test <- mvn(data = loan_numeric_data, mvnTest = "royston")
+multi_normality_test$multivariateNormality
+```
+
+<span style="color:red">**Create Univariate Q-Q Plots**</span>
+
+Below univariate plots are evidence of the nonnormality since most of them have outstanding points deviating from 45 degree line.
+
+```{r message=FALSE, warning=FALSE}
+
+univariate_normality_test <- mvn(data = loan_numeric_data, mvnTest = "royston", univariatePlot = "qqplot")
+univariate_normality_test
+```
+
+<span style="color:red">**Create Univariate Histograms**</span>
+
+Also,as you see from the Univariate Histograms, all of the variables violate the multivaraite normality.
+
+```{r message=FALSE, warning=FALSE}
+hist_univariate_normality_test <- mvn(data = loan_numeric_data, mvnTest = "royston", univariatePlot = "histogram")
+hist_univariate_normality_test$univariateNormality #univariate normality result.
+```
+
+
+```{r message=FALSE, warning=FALSE}
+#aÅŸaÄŸÄ±daki 2 kod Ã§alÄ±ÅŸmÄ±yor ??
+#Outlier Detection
+#Multivariate outliers are the common reason for violating MVN assumption. In other words, MVN assumption requires the absence of multivariate outliers
+# Mahalanobis distance
+#As seen that, we have 4 outlier observations proved by Mahalanobis Distance in this dataset.
+#Mahalanobis_outliers <- mvn(data = loan_numeric_data, mvnTest = "royston", multivariateOutlierMethod = "quan")
+
+# Adjusted Mahalanobis distance
+#we tryed but cannot get any result from adj.
+#adj_outliers <- mvn(data = loan_numeric_data, mvnTest = "royston", multivariateOutlierMethod = "adj")
+```
+
+<span style="color:red">**Question 1**</span>
+
+for total_credit_limit and total_credit_utilized
+
+Suppose that weâ€™d like to test the null hypothesis that the observations come from the mean vector of the responses variables Î¼T0=[180000,65000]
+
+That means our hypothesis is
+
+H0=Î¼=Î¼0 vs H1=Î¼â‰ Î¼0
+
+First of all, create submatrix including your variable of interests.
+
+```{r message=FALSE, warning=FALSE}
+y<-loan_numeric_data%>%select(total_credit_limit, total_credit_utilized)
+head(y, 5)
+```
+
+Then create Î¼0 vector.
+
+```{r message=FALSE, warning=FALSE}
+mu0=c(180000,65000)
+```
+
+Calculate the mean of the dependent variables:
+
+```{r message=FALSE, warning=FALSE}
+matr <- matrix(c(mean(loan_numeric_data$total_credit_limit), mean(loan_numeric_data$total_credit_utilized)), nrow=1)
+
+colnames(matr) <- c('total credit limit', 'total credit utilized')
+
+rownames(matr) <- 'means'
+```
+
+You know the assumption of this test is that the samples should follow normal distribution.
+
+The response matrix does not follow normal distribution.
+
+```{r message=FALSE, warning=FALSE}
+q1_test<-mvn(y,mvnTest = "hz")
+q1_test$multivariateNormality
+```
+
+After applying log transformation, normality is satisfied.
+
+```{r message=FALSE, warning=FALSE}
+
+log_y <- log(y)
+test<-mvn(log_y,mvnTest = "hz")
+test$univariateNormality
+```
+
+Then, we continue to analysis by considering log of the numbers.
+
+Visual inspection of means of the groups indicates that means are different from each other.
+
+```{r message=FALSE, warning=FALSE}
+#install.packages("psych")
+library (psych)
+error.bars(log_y, ylab="Group Means", xlab=" Dependent Variables")
+```
+
+According to below HotellingsT2 test, p-value < 0.05. So, we reject H0. Therefore, we have enough evidence to conclude that the log of the mean vector is not equal to log (180000,65000).
+
+```{r message=FALSE, warning=FALSE}
+HotellingsT2(log_y,mu=log(mu0))
+```
+
+<span style="color:red">**Question 2**</span>
+
+#When we compare two independent samples in multivariate analysis, we assume that
+
+#Î£1=Î£2=Î£
+
+#Both samples follow normal distributions.
+
+#|Î£|>0
+
+In this example, we will test whether there is a difference between the means of total credit limit and total credit utilized with respect to having second income source. In other words, weâ€™ll test that
+
+H0=Î¼second_true=Î¼second_false vs H1=Î¼second_trueâ‰ Î¼second_false
+
+where
+
+Î¼second_true=[Î¼total_credit_limit/second_true, Î¼total_credit_utilized/second_true]
+
+Î¼second_false=[Î¼total_credit_limit/second_false, Î¼total_credit_utilized/second_false]
+
+We will conduct the test again with log of the data which we have proven the normailty.
+
+```{r message=FALSE, warning=FALSE}
+q1_with_categorical <- data.frame(loan_data$has_second_income, loan_data$total_credit_limit, loan_data$total_credit_utilized)
+head(q1_with_categorical, 5)
+```
+
+You can see that people having second income source is very few.
+
+Hence, we decided to uses shapiro-wilk test to test the normality.
+
+```{r message=FALSE, warning=FALSE}
+table(q1_with_categorical$loan_data.has_second_income)
+```
+
+Firstly, we took subset of the data where the variable of interests are total credit limit and total credit utilized
+
+Then, we took the logarithm of the numbers.
+
+```{r message=FALSE, warning=FALSE}
+subset_data = q1_with_categorical %>% mutate(log_total_credit_limit = log(loan_data.total_credit_limit), log_total_credit_utilized = log(loan_data.total_credit_utilized))
+```
+
+Then, we group them with respect to having second income source.
+
+At the end, we test the normality of the groups.
+
+As the p-value is non-significant (p > 0.05) for each combination of independent and dependent variables, we fail to reject the null hypothesis and conclude that data follows univariate normality.
+
+```{r message=FALSE, warning=FALSE}
+library(rstatix)
+subset_data %>% group_by(loan_data.has_second_income) %>%  shapiro_test(loan_data.total_credit_limit, loan_data.total_credit_utilized)
+```
+
+After proving normality, we will use Boxâ€™s M test to assess the homogeneity of the variance-covariance matrices.
+
+Null hypothesis: variance-covariance matrices are equal for each combination formed by each group in the independent variable
+
+As the p-value is non-significant (p > 0.05) for Boxâ€™s M test, we fail to reject the null hypothesis and conclude that variance-covariance matrices are equal for each combination of the dependent variable formed by each group in the independent variable.
+
+```{r message=FALSE, warning=FALSE}
+subset_data$loan_data.has_second_income <- as.character(subset_data$loan_data.has_second_income)
+subset_data$loan_data.has_second_income <- as.factor(subset_data$loan_data.has_second_income)
+library(heplots)
+boxM(Y = cbind(subset_data$log_total_credit_limit, subset_data$log_total_credit_utilized), group = factor(subset_data$loan_data.has_second_income))
+class(subset_data$loan_data.has_second_income)
+```
+
+Hence, we are ready to conduct the hypothesis.
+
+Below HotellingsT2 yields the result as p-value > 0.05, we are 95% sure that the mean of total credit limit and mean of total credit utilized does not change with respect to having second income source.
+
+```{r message=FALSE, warning=FALSE}
+HotellingsT2(cbind(subset_data$log_total_credit_limit, subset_data$log_total_credit_utilized) ~ subset_data$loan_data.has_second_income)
+```
+
+<span style="color:red">**Question 3 (One Way MANOVA)**</span>
+
+In this question, we will test whether the response variables (total credit limit, total credit utilized) varies with respect to credit grade type. In other words, weâ€™ll test:
+
+H0=Î¼1=Î¼2=Î¼3 
+
+H1=At least one Î¼ is different where Î¼â€²is are mean vector for i=1,2,3.
+
+Note that the original variables fail in normality. As in the previous examples, we will consider the logs of the responses.
+
+We again create subset including total credit limit, total credit utilized and credit grade as factor.
+
+Then, we took the numeric variables' logarithm and convert the credit grade to factor.
+
+```{r message=FALSE, warning=FALSE}
+q3_with_grade_categorical <- data.frame(loan_data$grade, loan_data$total_credit_limit, loan_data$total_credit_utilized)
+subset_data1 <- q3_with_grade_categorical %>% select(loan_data.total_credit_limit, loan_data.total_credit_utilized, loan_data.grade) %>% mutate(log_loan_data.total_credit_limit = log(loan_data.total_credit_limit), log_loan_data.total_credit_utilized = log(loan_data.total_credit_utilized))
+
+subset_data1$loan_data.grade <- as.factor(subset_data1$loan_data.grade)
+```
+
+You can see the first 5 rows of the data that we obtained:
+
+```{r message=FALSE, warning=FALSE}
+head(subset_data1, 5)
+```
+
+From below table, you can see that... (yorum ekle)
+
+```{r message=FALSE, warning=FALSE}
+#Calculate the descriptive statistics
+subset_data1 %>% group_by(loan_data.grade) %>%  summarise(n = n(), 
+                                               mean_log_total_credit_limit = mean(log_loan_data.total_credit_limit), 
+                                               sd_log_total_credit_limit = sd(log_loan_data.total_credit_limit),
+                                               mean_log_total_credit_utilized = mean(log_loan_data.total_credit_utilized),
+                                               sd_log_total_credit_utilized = sd(log_loan_data.total_credit_utilized))
+```
+
+```{r message=FALSE, warning=FALSE}
+#After that visualize the data
+p1 <- ggplot(subset_data1, aes(x = loan_data.grade, y = log_loan_data.total_credit_limit, fill = loan_data.grade)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.2) + theme(legend.position="top")+
+  labs(title = "The Box Plot of Total Credit Limit by Grade" ,subtitle = "Log of Credit Limit Is Used.")
+p2 <- ggplot(subset_data1, aes(x = loan_data.grade, y = log_loan_data.total_credit_utilized, fill = loan_data.grade)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.2) + theme(legend.position="top")+
+  labs(title = "The Box Plot of Total Credit Utilized by Grade" ,subtitle = "Log of Credit Utilized Is Used.")
+grid.arrange(p1, p2, ncol=2)
+```
+
+Below table shows that there are 6 people in our data having C type credit grade. 
+
+Hence, we again use shapiro wilk test to check the normality instead of mvn.
+
+```{r message=FALSE, warning=FALSE}
+table(subset_data1$loan_data.grade)
+```
+
+As the p-value is non-significant (p > 0.01) for each combination of independent and dependent variables, we fail to reject the null hypothesis and conclude that data follows univariate normality.
+
+```{r}
+
+subset_data1 %>% group_by(loan_data.grade) %>%  shapiro_test(log_loan_data.total_credit_limit,log_loan_data.total_credit_utilized)
+```
+
+After the normality, we will use Boxâ€™s M test to assess the homogeneity of the variance-covariance matrices.
+
+As the p-value is non-significant (p > 0.05) for Boxâ€™s M test, we fail to reject the null hypothesis and conclude that variance-covariance matrices are equal for each combination of the dependent variable formed by each group in the independent variable.
+
+```{r message=FALSE, warning=FALSE}
+
+boxM(Y = cbind(subset_data1$log_loan_data.total_credit_limit,subset_data1$log_loan_data.total_credit_utilized),
+     group = factor(subset_data1$loan_data.grade))
+```
+
+After checking assumptions, we can conduct One Way MANOVA.
+Therefore, we are 95% confident that mean of total credit limit and mean of total credit utilized does not change with respect to credit grade type.
+
+```{r message=FALSE, warning=FALSE}
+m1 <- manova(cbind(log_loan_data.total_credit_limit, log_loan_data.total_credit_utilized) ~ loan_data.grade, data = subset_data1)
+summary(m1)
+```
+
+<span style="color:red">**Multivariate Multiple Linear Regression**</span>
+
+```{r message=FALSE, warning=FALSE}
+mlm1 <- lm(cbind(num_cc_carrying_balance, total_credit_utilized) ~ annual_income + debt_to_income + loan_amount + interest_rate, data = loan_numeric_data)
+summary(mlm1)
+```
+
+```{r message=FALSE, warning=FALSE}
+residuals_loan_numeric_data <- resid(mlm1)
+
+residuals_loan_numeric_data <- data.frame(residuals_loan_numeric_data)
+
+min(residuals_loan_numeric_data$num_cc_carrying_balance)
+residuals_loan_numeric_data$num_cc_carrying_balance <- residuals_loan_numeric_data$num_cc_carrying_balance + 4.509630
+
+min(residuals_loan_numeric_data$total_credit_utilized)
+residuals_loan_numeric_data$total_credit_utilized <- residuals_loan_numeric_data$total_credit_utilized + 27226.83
+```
+
+The same diagnostics we check for models with one predictor should be checked for these as well. These assumptions about the data, such as :
+
+Linearity of the data. The relationship between the predictor (x) and the outcome (y) is assumed to be             linear.
+
+Normality of residuals. The residual errors are assumed to be normally distributed.
+
+Homogeneity of residuals variance. The residuals are assumed to have a constant variance (homoscedasticity)
+
+Independence of residuals error terms.
+
+normality of residuals satisfied.
+
+```{r message=FALSE, warning=FALSE}
+q_multiple_test<-mvn(sqrt(residuals_loan_numeric_data), mvnTest = "royston")
+q_multiple_test$multivariateNormality
+```
+
+<span style="color:red">**PRINCIPAL COMPONENT ANALYSIS**</span>
+
+```{r}
+
+loan_data$state <- as.factor(loan_data$state)
+loan_data$term <- as.factor(loan_data$term)
+loan_data$homeownership <- as.factor(loan_data$homeownership)
+loan_data$verified_income <- as.factor(loan_data$verified_income)
+loan_data$loan_purpose <- as.factor(loan_data$loan_purpose)
+loan_data$grade <- as.factor(loan_data$grade)
+loan_data$public_record_bankrupt <- as.factor(loan_data$public_record_bankrupt)
+loan_data$loan_status <- as.factor(loan_data$loan_status)
+loan_data$has_second_income <- as.factor(loan_data$has_second_income)
+
+summary(loan_data)
+```
+
+We can say that the 1st, 4th, 6th, 7th 10th and 12th variables are factor, so we will omit them for a while and put a side since we will use them later. 
+
+Then, we draw the same plot again.
+
+```{r message=FALSE, warning=FALSE}
+head(loan_numeric_data) # 8 numeric variables
+```
+
+It is seen that correlations clustered at the top left shows strong correlation while the obscure ones shows less correlation.
+
+```{r message=FALSE, warning=FALSE}
+res <- cor(loan_numeric_data, method="pearson")
+corrplot::corrplot(res, method= "color", order = "hclust")
+```
+
+To avoid from any problem in PCA calculations, we scale the numerical variables.
+
+```{r message=FALSE, warning=FALSE}
+scaled_loan_numeric_data <- scale(loan_numeric_data)
+head(scaled_loan_numeric_data)
+```
+
+We will remove our response variables debt_to_income, total_credit_limit and total_credit_utilized.
+
+```{r message=FALSE, warning=FALSE}
+categorical_removed <- scaled_loan_numeric_data[, c('num_cc_carrying_balance', 
+                                                    'annual_income', 
+                                                    'loan_amount', 
+                                                    'interest_rate', 
+                                                    'total_income')]
+```
+
+Below is output from summary of PCA1.
+
+For example, we can see that the first three components explain the 86.1% variability in data.
+
+```{r message=FALSE, warning=FALSE}
+pca1 <- prcomp(categorical_removed)
+summary(pca1)
+```
+
+We see that the resulting object has 5 variables. 
+
+The principal components of interest are stored in x object. It will be of the same dimension as our data used for PCA. Here each column is Principal Component.
+
+(coefficients are probably before standardization (I am not sure!!!))
+
+```{r message=FALSE, warning=FALSE}
+pca1$x %>% head(6)  #Z matrix 
+```
+
+Z=XV both give the same output
+
+```{r message=FALSE, warning=FALSE}
+as.matrix(categorical_removed)%*%as.matrix(pca1$rotation) %>% head(6) #XV matrix
+```
+
+V Matrix-Eigenvectors
+
+(total of squares of coefficients are equal to 1)
+
+```{r message=FALSE, warning=FALSE}
+pca1$rotation
+```
+
+Z matrix- Each column is a principal component
+
+(again coeffs. are before standardization)
+
+```{r message=FALSE, warning=FALSE}
+pca1$x
+```
+
+Eigenvalues
+
+```{r message=FALSE, warning=FALSE}
+pca1$sdev
+```
+
+Then, we decide how many components should we include in our analysis.
+
+From scree plot, we can see that 3 components seems OK in explaining almost 86.1% of 
+the variability in the data.
+
+```{r message=FALSE, warning=FALSE}
+fviz_eig(pca1,addlabels=TRUE) #represent the proportion values
+```
+
+Now, Lets extract first 3 components and continue our analysis with them.
+
+```{r message=FALSE, warning=FALSE}
+pca<-pca1$x[,1:3]
+#I write index numbers for column part
+head(pca)
+```
+
+We would like to be sure that our components should be orthogonal. 
+
+In other words, they must be linearly independent. To check this, draw the correlation plot of the pcaâ€™s.
+
+As you see, all components are linearly independent.
+
+```{r message=FALSE, warning=FALSE}
+res1 <- cor(pca, method="pearson")
+corrplot::corrplot(res1, method= "color", order = "hclust")
+```
+
+<span style="color:red">**Interpretation of Components**</span>
+
+The PCs can then be interpreted based on which variables they are most correlated in 
+either a positive or negative direction. 
+
+The first component is strongly negatively correlated with loan_amount, total_income and annual_income.
+
+num_cc_carriying_balance and interest_rate are positively correlated with PCA2.
+
+Total_amount has the highest correlation value with 92.2% with PCA1.
+
+```{r message=FALSE, warning=FALSE}
+cor(categorical_removed, pca)
+```
+
+Then, let's plot our PCA.
+
+Below biplot shows the position of each sample in terms of PC1 and PC2 and the initial 
+variables map onto this.
+
+Lets consider plot for PC1-PC2.
+
+Their project values on each PC show how much weight they have on that PC.
+
+In this example, total_income, annual_income and loan_amount strongly influence PC1, while 
+num_cc_carriying_balance and interest have more say in PC2.
+
+Here, we can also say that total_income, annual_income variables  are positively correlated with
+each other since the angle between then is relatively small.
+
+The same relationship also exists for variables num_cc_carrying_balance and interest_rate.
+
+```{r message=FALSE, warning=FALSE}
+fviz_pca_var(pca1,axes = c(1, 2))
+```
+
+We can also observe the which components is good in the explanation of the cases.
+
+7. person is explained by PC1 and 43. person is explained by PC2.
+
+```{r message=FALSE, warning=FALSE}
+fviz_pca_ind(pca1, col.ind = "#00AFBB")
+```
+
+We can also visualize the contribution of the individuals to the components. 
+
+For example, we can see that 39. person has the highest contribution to the first two components.
+
+```{r message=FALSE, warning=FALSE}
+fviz_contrib(pca1, choice = "ind", axes = 1:2) + coord_flip()
+```
+
+Individuals having one bankruptcy history are explained mostly by PCA1 while individuals having 2 bankruptcy are explained almost equally by two components PCA1 and PCA2.
+
+```{r message=FALSE, warning=FALSE}
+fviz_pca_ind(pca1, label="none", habillage=loan_data$public_record_bankrupt,
+             addEllipses=TRUE, ellipse.level=0.95)
+```
+
+Here, you can see the Principle Component Regression.
+
+In order to perform the regression, we have combined response variable 'total_credit_limit' with PCA's.
+
+```{r message=FALSE, warning=FALSE}
+ols.data <- data.frame(scaled_loan_numeric_data[, 6], pca)
+```
+
+
+All of the PCA's are significant because their p-values are less than 0.05, and our model is significant as well.
+
+Here, we can see that 73% of the variability in response value loan_amount can be explained by 3 principal components.
+
+```{r message=FALSE, warning=FALSE}
+lmodel <- lm(scaled_loan_numeric_data...6. ~ ., data = ols.data)
+summary(lmodel)
+```
+
+You can see that MSE value is 0.25 which is relatively low.
+
+```{r message=FALSE, warning=FALSE}
+mean((ols.data$scaled_loan_numeric_data...6. - predict(lmodel))^2) # mse
+#sqrt(mean((ols.data$scaled_loan_numeric_data...6. - predict(lmodel))^2)) # rmse 
+```
+
+<span style="color:red">**FACTOR ANALYSIS**</span>
+
+We convert charachter variables first to factor, and than to integers.
+
+```{r message=FALSE, warning=FALSE}
+loan_data$term <- as.factor(loan_data$term)
+loan_data$homeownership <- as.factor(loan_data$homeownership)
+loan_data$verified_income <- as.factor(loan_data$verified_income)
+loan_data$loan_purpose <- as.factor(loan_data$loan_purpose)
+loan_data$grade <- as.factor(loan_data$grade)
+loan_data$public_record_bankrupt <- as.factor(loan_data$public_record_bankrupt)
+loan_data$loan_status <- as.factor(loan_data$loan_status)
+loan_data$has_second_income <- as.factor(loan_data$has_second_income)
+loan_data$state <- as.factor(loan_data$state)
+
+loan_data$term <- as.integer(loan_data$term)
+loan_data$homeownership <- as.integer(loan_data$homeownership)
+loan_data$verified_income <- as.integer(loan_data$verified_income)
+loan_data$loan_purpose <- as.integer(loan_data$loan_purpose)
+loan_data$grade <- as.integer(loan_data$grade)
+loan_data$public_record_bankrupt <- as.integer(loan_data$public_record_bankrupt)
+loan_data$loan_status <- as.integer(loan_data$loan_status)
+loan_data$has_second_income <- as.integer(loan_data$has_second_income)
+loan_data$state <- as.integer(loan_data$state)
+```
+
+```{r message=FALSE, warning=FALSE}
+#We selected first 12 variables to analyse.
+factor_loan_data <- loan_data[, 1:12]
+
+#Instead, we will calculate and show the correlation in the data.
+cm <- cor(factor_loan_data, method="pearson")
+corrplot::corrplot(cm, method= "number", order = "hclust")
+```
+
+Then, to check whether our variables are sutable for factor analysis, we use Kaiser-Meyer-Olkin (KMO) and Bartlett tests.
+
+As you can see, MSE value is greater than 0.5 and bartlett test yield value less than 0.05 significance level. 
+
+Hence, we can say that our variables are suitable for a factor analysis.
+Since MSA > 0.5, we can run Factor Analysis on this data.
+
+```{r message=FALSE, warning=FALSE}
+KMO(r=cm)
+```
+
+Bartlett Test result:
+
+```{r message=FALSE, warning=FALSE}
+
+print(cortest.bartlett(cm,nrow(factor_loan_data)))
+```
+
+Then, we are ready to decide how much factor is adequate to conduct the analsis.
+
+As you can see Scree Plot located below, 6 factors are suggested to be used.
+
+```{r message=FALSE, warning=FALSE}
+parallel <- fa.parallel(factor_loan_data, fm = "minres", fa = "fa")
+parallel
+```
+
+Below factanal test result yields result as 0.83 which is greater than 0.05.
+
+Hence, we can say that  6 factor solution is adequate.
+
+```{r message=FALSE, warning=FALSE}
+factanal(factor_loan_data, factors = 6, method ="mle")$PVAL
+```
+
+Here, as you can see from the loadings part of factanal test, 6 factor explains nearly 67% of the variability in the data set. (last element of Cumulative Var or total of Proportion Var)
+
+Also, when we check the factor 1, we can see that the highest loading values are belong to the debt_to_income ratio and total_credit_utilized with, 0.95 and 0.97 respectively.
+
+Besides that, for the factor 2, the highest loading values are belong to the annual_income and total_credit_limit 
+
+```{r message=FALSE, warning=FALSE}
+f<-factanal(factor_loan_data, factors = 6, method ="mle")
+f
+```
+
+The same pattern can be catched from below summary result.
+
+As it can been seen, first component is mainly dominated by the variables total_credit_utilized and dept_to_income ratio. 
+
+On the other hand, second factor is mainly dominated by the variable annual_income and by the total_credit_limit variable.
+
+```{r message=FALSE, warning=FALSE}
+load <- f$loadings[, 1:2]
+plot(load,type="n") # set up plot
+text(load,labels=names(factor_loan_data),cex=.7)
+```
+
+We select debt_to_income and total_credit_utilized variables to test their sufficiency:
+(1:20:00 bak tekrar vidodan)
+
+```{r message=FALSE, warning=FALSE}
+names(f$loadings[,1])[abs(f$loadings[,1])>0.4]
+#"debt_to_income" "total_credit_utilized"
+f1<-factor_loan_data[,names(f$loadings[,1])[abs(f$loadings[,1])>0.4]]
+```
+
+AÅŸaÄŸÄ±daki alpha result'u iÃ§in at least one bÃ¶yle factor lerin raw alphasÄ±nÄ±n 0.7 den bÃ¼yÃ¼k olmasÄ± lazÄ±m!!!!!!!!!
+
+Once you have defined each of the factors you can use that information to run the analysis.
+
+Cronbachâ€™s alpha is a measure of internal consistency that ranges from zero to 1.0, similar to 
+positive correlation values.
+
+It is possible for alpha to take a value greater than 1.0 if two or more variables in the set are highly correlated, in which case you may want to check for collinearity. 
+
+In general, a value of alpha greater than 0.70 is considered acceptable for internal consistency, but a value of alpha greater than 0.80 is preferred. 
+
+The function for calculating alpha can be found in the psych library and is relatively easy to use.
+
+```{r message=FALSE, warning=FALSE}
+alpha(f1, check.keys=TRUE)
+```
+
+check.keysargument prevents the factor from the variables that may impact the factor negatively.
+
+We are concerned with the â€œraw-alphaâ€ value for the entire factor. That tells us, overall, how consistent the variables are within the factor.
+
+Here, the alpha is 0.96. That is pretty good.
+
+```{r message=FALSE, warning=FALSE}
+summary(alpha(f1, check.keys=TRUE))
+```
+
+You can repeat this process for the rest of the factors.
+
+After determining your factors, you can use them in the further steps of your analysis for example as independent observations in your regression.
+
+While doing this, your variables should be factor scores which are basically equal to LF where L is the factor loadings and F is the common predictors (variables in the factors)
+
+In other words, we can obtain the estimated factor scores for individuals.
+
+How to obtain them?
+
+```{r message=FALSE, warning=FALSE}
+scores<-factanal(factor_loan_data, factors = 6, method ="mle",scores="regression")$scores
+head(scores)
+```
+
+As you see, they are almost uncorrelated which guarantees that no multicollinearity problem in linear regression.
+
+```{r message=FALSE, warning=FALSE}
+cm1 <- cor(scores, method="pearson")
+corrplot::corrplot(cm1, method= "number", order = "hclust")
+```
+
